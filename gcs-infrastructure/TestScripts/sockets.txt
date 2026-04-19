@@ -1,0 +1,962 @@
+okay all right so the socket programming basically an api well we just move to
+0:08
+the next slide it's basically an api so if we look at it you know you're writing your user application here client server
+0:14
+will talk about client server multiple times but a client server application the server's waiting for clients to
+0:19
+connect so you know web server whatever and you're going to write servers and then the client over here wants to talk
+0:25
+to the server and we need to use the protocol stack well it turns out that this part of the protocol stack is in
+0:32
+the kernel of your operating system typically now there there's certain operating systems are moving more and
+0:38
+more to move that to user space and there's reasons for that but traditionally and
+0:44
+including today and what you're working with that's kernel code and it's a good thing because
+0:49
+i don't want you directly messing with the ethernet nick right i don't want you to be able to you as a user mess with
+0:55
+the unix 3 ethernet nic that just would not be a good thing so all that stuff is protected by the kernel including tcp
+1:01
+and ip well how do we typically access resources in the kernel as a c programmer
+1:08
+system calls system calls and that's what the socket api is this is these are system calls
+1:16
+and so you can look at it i'm going to redraw this slightly is that sort of where the kernel is
+1:26
+right so part of the system calls in user space and part of the system calls in kernel space and its goal in life
+1:32
+is for you to set it up with whatever parameters it needs and then trap to the
+1:37
+kernel right let the kernel execute the function and then come back we got that that's
+1:43
+what a system call is and so there's no magic here other than with the socket api it's just a set of
+1:49
+functions that are horribly written okay that's that's like the definition of socket api horribly written set of
+1:55
+functions but we have to live with them because that's what we have okay
+2:00
+all right by the way they were written by berkeley and dr nico went to berkeley so feel
+2:07
+free you can just give him all sorts of grief and say well i'd be embarrassed if my university came out with of course
+2:14
+everybody in the world uses socket api so it's actually really famous and probably a good thing for him but i would still say i'd be embarrassed if my
+2:20
+university came out with code like that just i just say that to him i've also been told this handwriting is
+2:26
+messier than mine and i i take that as a compliment uh so i'm excited about that i'm not sure how
+2:32
+he does it because i barely read my own handwriting but anyways
+2:38
+okay so let's talk about um we're going to talk about a client and a
+2:44
+server here for a second we're going to start with tcp in this lecture we will touch on udp
+2:52
+but we won't really spend much time on udp we will do udp later in the quarter when it's closer to when we're going to
+2:58
+use it in programming in the lecture lab in in lab and the programming assignment if i teach it now you just forget it all and
+3:05
+it's not all helpful so we're just going to stick with mostly with tcp through this discussion and so on a client and a
+3:11
+server so the first thing is the server has to be run first because the server is waiting for a client to connect so
+3:17
+you know we go back to our always to our picture right well here's the server
+3:23
+and it's you know waiting for somebody to connect to it right a client to connect to it and then another client
+3:28
+can connect to a server right and if it's a web server right we might have many clients connecting to it
+3:34
+okay and so the server starts first and we're going to have to look we're going to look at one at a time we're going to go through these functions there's the
+3:40
+socket function which begins to set up begins to establish stuff in the kernel then there's a couple more kernel setup
+3:46
+functions that we're going to need and then and then finally the server's going to call accept and
+3:53
+this is a blocking call and what do i mean by blocking well until
+3:59
+something comes in for it that call doesn't return okay it's just going to sit there and block tip traditionally
+4:06
+sit there and block waiting for a client now let's look at what the client's doing the client also is going to create
+4:12
+a socket and then the client's going to call a function called connect
+4:17
+the connect then begins to establish a connection with the server and so this is tcp is connection oriented
+4:28
+what's that mean set up and tear down set up use and tear
+4:35
+down and so this is the setup part these two calls here
+4:40
+there's actually going to be and we'll see this when we get to tcp there's actually an exchange of information
+4:45
+underneath you don't see it underneath that's being done by tcp to set up that connection
+4:51
+and then once the connection's set up we can use it and we use the function send and receive
+5:00
+and that's just sending data back and forth and then the final thing is we can close it which is the tear down
+5:08
+and we'll go into more into detail on the setup use and tear down of tcp in
+5:13
+terms of what's going on under the hood when we get to the tcp part of the class
+5:18
+from a programming standpoint these are the functions that we need to use
+5:24
+socket api functions so the the first function we're going to look at is the socket function we're
+5:29
+just going to go through those functions and just talk about what they're doing and take away any kind of mystery there right it's a socket call well when the
+5:36
+berkeley people were thinking of doing this they said well what abstraction do we already know about well we already
+5:41
+know how to do file io and when we do file io what do we call we call open
+5:47
+and we give it some stuff and what is open return file descriptor a file descriptor
+5:57
+now i want to point out this is important open is a system call socket is a system call
+6:04
+almost all the system calls return less than zero on error
+6:09
+now let's talk about stir copy okay what is is stir copy a system call or not a
+6:16
+system call well it's effectively like mem copy with
+6:22
+error checking um so it's just a function that's run in your user space so i mean if we go you
+6:29
+know here's here's your you know here's your virtual memory that's allocated to your program when
+6:36
+it's run right so you're in your virtual memory and you know here at some place in here is the stir copy
+6:43
+code i can't even read that okay i mean just in your space
+6:49
+where your program space and here's some more of your code right so your code is all down here someplace this is your code
+6:56
+and stir copy's in there and so when you call it it just jumps to the memory location in your in your virtual memory
+7:03
+and runs that code no big deal but when we make a system call
+7:08
+there's actually it's going to jump into the kernel which is not your memory
+7:14
+and run code in here okay so if stir copy has an error most likely
+7:21
+a seg fault because you forgot a null terminated something your program knows it immediately that's a great thing boom
+7:27
+bam done i got it there's an error but if there's an error let's say you don't
+7:33
+give it enough buffer space or a bad something or other and it happens in the kernel the kernel's not going to seg
+7:38
+fault thank goodness right because then you would just be freezing your machine every time you screwed a system call
+7:44
+right so what's going to happen is the system call is going to stop and it's going to return -1 and if you're not
+7:50
+checking for that then an error is occurring over here and you have no idea that it occurred so it's completely
+7:56
+different than making normal calls and it's very important that you check your system costs for errors because if you
+8:02
+don't you may spend hours and hours debugging it because it's not working in the kernel and you don't know it because
+8:08
+you're ignoring the return value okay it's very easy anytime you make a system call you just check is it less
+8:15
+than zero on the return and if it is you you print out a p error
+8:20
+right with some you know string in there and then exit you know minus one or something like
+8:27
+that it's typically what i do so coming back up here it returns a file descriptor and if we look at what
+8:32
+happens there let's go back to our you know our virtual memory space so let me redraw my picture so i'm just gonna take
+8:37
+some space here here's my virtual memory right and you know my file descriptors and they point into the kernel and so
+8:44
+you know standard ends right here and it's really pointing to a structure in the kernel that is standard in and so
+8:51
+when you make the system call to print something to standard or to read something from standard in it's actually
+8:56
+going to be a system call and it's going to go access some memory in the kernel that
+9:02
+contains information about standard in and it's going to do that remember our file descriptor 0 is standard in
+9:09
+one is standard out and two is standard error
+9:16
+so if you open a file the lowest socket number the lowest file descriptor
+9:22
+you're going to get is three right so all right so let's go back
+9:28
+well they said well why don't we use the same kind of idea on sockets and so we'll open a socket which is really a
+9:34
+network connection but then we can in a sense read and write to it and so that's what they did and so
+9:39
+the socket call is socket and then we'll look at the parameters in a minute right and it returns a file descriptor
+9:50
+which by the way you're going to check for less than zero because it turns out that it returns minus one on error okay
+9:57
+so it returns a file descriptor so we go back to the here right so we got standard in standard out standard error
+10:02
+and then if we call socket the next one is three and it'll create a structure in
+10:10
+the kernel for your socket and if you don't call socket again it creates another structure in your kernel for
+10:16
+that other socket and each one of those is going to be a communication thing that we're setting up okay
+10:22
+the point i'm trying to make here is they're file descriptors they're in the same file descriptor table they're doing the same thing that when you open a file
+10:30
+and that they're setting up space in the kernel for your communication or for your talking back and forth okay just like
+10:36
+reading and writing too far okay all right we're going to use instead of
+10:42
+read and write we use receive and send or the other in tcp are the functions we'll get to the other functions when we
+10:48
+get to udp but receive and send are how we read and write to a socket
+10:57
+all right there's two types of sockets we can create we can create a tcp socket we can create a udp socket
+11:03
+and in tcp socket if we're going to create it we're going to specify the the macro sock stream for udp and we'll go
+11:10
+into the detail on that as sock dram but for tcp and this is what we're mainly concerned with this stock stream
+11:18
+so let's look at the call to it here's the prototype there's the address family the type and the protocol
+11:25
+for us we'll always use the address family of af inet 6
+11:30
+and that's what af is address family and then inet 6 is internet 6 protocol it
+11:37
+works for both ipv4 which is the common protocol we use now and ipv6 is the one
+11:43
+we've been migrating to since 1992. so it's a slow migration okay just it's
+11:48
+tiny migration more slowly but we're almost there we'll be there in now 10 years um
+11:55
+okay uh so this is what we'll use in this class you could use something else you could use afinet which was just i p
+12:02
+tc uh version four uh there's also one just for version six but this does both four and six
+12:08
+and then the type will be sockstream and the protocol is zero
+12:14
+and essentially what this does is you know here's our virtual memory here's the kernel and it's setting up
+12:21
+that data structure in there and it's basically saying by the way you're a tcp
+12:27
+and you're using the normal tcp protocol and you'll never use anything but zero
+12:32
+and so in theory you could just have you know they could have created a function called in tcp
+12:39
+socket and only had one parameter which is four or six right i mean but no they had
+12:45
+to have all this the protocol zero and all that no one ever wrote a nicer cleaner interface to sockets that we use
+12:51
+this is just what we use all right so we'll look at a call to that
+12:57
+ipv6 tcp socket protocol zero check for errors
+13:03
+always use your p error function it's your friend and there's our call to socket
+13:10
+remember your parentheses because you're setting something you need a parenthesis there and there for precedence reasons
+13:18
+all right simple any questions uh
+13:24
+yeah actually why we have file descriptors this is a file
+13:31
+descriptor why are we not treating it like a file we could you can actually read and write
+13:36
+to the socket just don't do that okay so so we use send and receive because it makes it easier for us to
+13:42
+debug our code because we can follow through oh there's a send i know that's a socket but you could actually call the function
+13:49
+read and it would read from that socket if there was data available just like the receive does
+13:54
+but it makes your code harder to debug so we use send and receive as protocols
+14:00
+so our send and receive just wrappers around read and write
+14:05
+kernel you do the kernel digging right they actually have an extra option but i'm not yeah that one is going to depend
+14:11
+on your operating system and everything cool all right so now
+14:17
+now we got the socket idea down cool all right now if i have
+14:24
+oh well if i write to stand to suck to file descriptor zero and you write to file descriptor zero
+14:32
+what effect does your writing the file descriptor zero have on me writing to file descriptor zero
+14:38
+and two programs we're both running we're both running our own programs there should be no effect no effect this
+14:45
+has its own file descriptor table right and the file to screw up your table is local to me
+14:50
+so if i call the function socket and it returns socket number seven
+14:57
+does that help anybody communicate with me that socket number like if i told you i have socket number seven can you talk to
+15:03
+me with that no it's local to my process
+15:08
+and so if we have you know we have a male client in a browser so that's a web
+15:13
+web browser right and then over here on our server we're running a mail server and a web server
+15:20
+now both of these called socket
+15:25
+and they both got file descriptors can we use that information
+15:31
+to for the client to connect to the server no i mean that's probably part of it but
+15:38
+it's actually not because the problem is with the socket number is that is only local to you so it has
+15:44
+no global information so the kernel doesn't know socket seven's my socket seven because
+15:50
+you could have socket seven two and the other process could have socket seven and somebody could have a file that's
+15:55
+opened on file descriptor seven they're all the same right and there's no way for the kernel on the way up for it to
+16:01
+pick who to go to based on that we're gonna need some other piece of information
+16:07
+that will allow the mail client to come up the kernel and talk to the
+16:13
+mail server and the web client to come up the kernel
+16:18
+and talk to the web server we're going to need a piece of information do you see the problem i'm trying to solve or we're trying to solve here okay what can
+16:25
+anybody think of and don't if you know the answer don't say it but can anybody think of something that might work there
+16:33
+just from trace my immediate thought is that's what ports are for
+16:39
+okay port number is is the correct answer but a lot of times i get somebody to say that like the process id like why
+16:45
+couldn't the process id like this has a process id and this has a process id right why couldn't we use the process id
+16:52
+well the problem is is every time you run your server it gets a different process id so how
+16:58
+could you connect how could you how would somebody over here ever connect to you they would have to know your process id for that day and so that's not
+17:04
+practical so what they came up with is this id of a port number and and when i first heard about port numbers i thought
+17:10
+physical something no no it's just a number maintained by the kernel
+17:15
+that's only given to one connection so like if i open a socket and get a port
+17:21
+number i get that port number and nobody else on the machine can have it and if you open a socket and then you
+17:27
+ask for a port number and you get a port number at one it won't be the one i have and two it'll be unique on the machine
+17:33
+for you and that way the kernel and that's what maintains the port numbers and port numbers are maintained by the
+17:39
+kernel the kernel then knows where to send it to now we're going to map the port number to a socket number but the
+17:46
+socket number's local the port number's global does that make sense okay we're still gonna talk read and
+17:52
+write to the socket like we do any file descriptor but we have to we call it bind the socket to a port number so that
+17:59
+it has that end point of the connection for the rest of the world and so for this male client here to talk
+18:06
+to this mail server there's three pieces of information that are needed one is just the protocol
+18:12
+family which isn't as obvious right and that's just afi net
+18:21
+if i had six okay that that one you wouldn't have gotten but the other two might make more sense to you one is it
+18:27
+needs to know the ip address of the server because it's got to go across the network and so one is the ip address
+18:36
+of the server and the last thing it needs is now that
+18:41
+it got to that ip address it's got to go up the kernel to the mail server and so it's going to need the port number
+18:52
+the port number of the server what number the server is using
+19:00
+and these three pieces of information are called naming the socket
+19:06
+in theory that name is worldwide unique because there's only should only be one in
+19:13
+theory server with that ip address and then on that server there should only be one server waiting on that port
+19:20
+number right so it's you get to the server on the ip you get to the application based on the port
+19:25
+number professor what is that in uh parentheses on number one i can't quite read the
+19:31
+handwriting yeah afinet6 all right so let's see the port numbers are maintained by the operating system
+19:38
+or the kernel but both the client and the server have a port number
+19:44
+all right now we only care really about the server's port number and so on the
+19:49
+server to get a port number right we've already called socket the next thing is how do we get a port number so on the
+19:55
+server we need to explicitly ask for one and we do this calling the buying
+20:01
+function
+20:07
+and that's on the server on the client on the other hand if you send
+20:14
+on a socket without a port number
+20:23
+one is assigned
+20:28
+by the kernel so what we see is on the server we're
+20:34
+going to ask for it because we need to know it and the client we don't care and so we're just going to let the kernel
+20:39
+implicitly give it to us but i hope the question about ports
+20:44
+uh is it the the link between two sockets that has a port number or is like each socket
+20:51
+is its own structure in memory that has its own port number i'm not sure i understand two halves of
+20:57
+the question i mean it sounded to me like they're both the same i'm sorry yeah i guess i just i don't really see
+21:04
+like why why we care about the client's port number if uh okay let's go back to our figure right
+21:11
+so now the server is sending back to the client and it has the ip address of the
+21:16
+client it would need that and so that gets it back to here but now that packet needs to go back up to the mail client
+21:23
+and not the web client right and so how does it make the decision to do that well it makes that
+21:29
+decision based on the client's port number and so really every packet that goes out
+21:35
+has the client's ip the server's ip the client's port number
+21:41
+and the server's port number and that uniquely identifies a complete end-to-end connection right and i can
+21:47
+use that to talk both ways so i need all four pieces of information for sort of the two-way communication
+21:57
+all right so explicitly by the server implicitly we just get it when we send so here's the
+22:03
+bind call by the way it returns less than zero on error this is a call that you typically uh get wrong okay this is
+22:10
+one of them those that i find more likely that students will get wrong and so and i've had students come and spend
+22:17
+four hours debugging wondering why their communication's not working and it's their buying calls so please make sure you check this one
+22:25
+uh i just answered that question implicitly and explicitly um there are a set of reserve ports so
+22:31
+the question comes off when you use your web browser do you ever put a port number in there
+22:38
+you put a name in there google.com right yeah well how does it get you you can do that how does it get to you sometimes
+22:44
+you can how does it get to the port number google's on well they're called well-known ports or reserved ports
+22:50
+and well all web traffic if it's unencrypted goes to port 80. okay and so that's just well-known
+22:56
+across the world so your browser knows when you put in www.google.com
+23:02
+it's going to go to port 80 at google that's what it's going to do all right and if you're doing you know an email
+23:09
+protocol there's different protocols for the different uh they're different port numbers for the different email protocols but it's going to go to
+23:15
+whatever the well-known port number is for that that email protocol and connect to the server using that and so
+23:21
+these reserved or well-known
+23:29
+are used for servers that we use all the time for for reserve and
+23:34
+a reserved you cannot these typically are between 0 and 1024
+23:40
+and you can't use a port number between 0 and 1024 without root on most machines or admin privileges on most machines and
+23:47
+the reason is is they don't want you trying to start up a web server when they want to run a web server themselves
+23:53
+like i t people want to run a web server on the machine and if you could start off a web server you'd actually block them from running their own web server
+23:59
+because you'd grab port 80. okay so uh they don't want you to do that
+24:06
+here's the bind call the prototype for it um it takes the socket you want to name
+24:12
+remember we're naming the socket it takes the name of it which is the ip address the family and the port number
+24:19
+and then this is just the length of that
+24:25
+here's the family structure now i told you that berkeley came up with an extremely ugly
+24:32
+thing this is the structure that that we have to use and populate now i i would that it's not
+24:38
+the most user-friendly structure in the world okay so we're going to set this one i i got
+24:44
+code coming out here it is here's the code right you set this to [Music] afi net six
+24:51
+um and then the next is the ip address which is this field here
+24:57
+now you now let's talk about that for a second i'm on a computer i write some code i
+25:03
+run compile it it runs i then move it over to unix two
+25:08
+okay unix two as it was on unix one i moved to unix two unix two is a different ip address
+25:14
+well if i hard code the ip addresses in my program it's going to be very hard for me to make my code portable so
+25:20
+there's instead a value called n6 address and he says any of the poor
+25:27
+any of the physical ip any of the ip addresses this computer has
+25:32
+connect to those so you don't have to know you don't have to know what the uh the ip address is of
+25:38
+your computer you just give it this parameter which is what we use all the time
+25:44
+and then the final thing is we have to set is the port number
+25:49
+now if i was a web server i would i could set my port number equal to host to
+25:55
+network short 80 and then that would be
+26:02
+saying i want to use port 80. now if i'd root i could do that and there's no other web servers doing it
+26:07
+if on the other hand i put the number zero in here zero means
+26:14
+give me a random port number
+26:22
+so it's made up by the kernel that's what we typically use for our programs because we're not well-known programs
+26:28
+right you're not a program you don't have a port number you want specifically so you'll just say give me a random one
+26:34
+it'll give you a random one and then you print it out and then you know what it is okay and so uh if you say zero now
+26:41
+what is the effect of hosts a network short on the number zero
+26:47
+also zero well yeah also zero no effect right i mean
+26:53
+zero's all zero bytes it doesn't matter if it swaps it or not still all zero bytes now i don't care you just always
+26:59
+call this function because if you forget to call it your program's not going to work the way you think it should
+27:04
+um because you'll get your port number and it'll be in a regular format and
+27:10
+you'll type it in and you don't change it to network order and
+27:15
+it's not going to work correctly okay now we only need these three and in fact
+27:21
+i i hope that i'll to check my code that i'm going to give you last the code i was giving last quarter didn't
+27:26
+initialize the entire structure to zeros in other words i didn't just zero out the whole thing and one student in the
+27:32
+whole class had problems because he was i don't know what architecture he was on was getting garbage in there and it was
+27:38
+just faulting out there they just have a lot of fields we don't care about and they need to be initialized at least
+27:45
+on some machines to zero and so i gotta check my code make sure that i actually updated that code rather than just
+27:52
+worked it with him but the other fields we don't care about
+27:58
+any questions on that so this is really it plus zeroing it out
+28:06
+here's a here's our there's our use of the the socket call setting up a tcp socket here i'm naming
+28:13
+the socket right by calling bind which is taking this information
+28:20
+right and assigning it getting it assigned to that socket
+28:29
+okay how does um how so if you have two programs two
+28:35
+processes talking to each other client server servant client how does one know the
+28:42
+other one that's the like the setup the connection based on the setup so first of all the
+28:49
+client needs to know the server's port number okay and you'll give it to it at runtime
+28:54
+right the browser already knows port 80 but in your case because it could be some random number you don't know what
+28:59
+your port number is going to be you'll print that out and i'll show you in just a minute how to do that you'll print
+29:04
+that out and then when you run the client you'll pass it in as an argument saying hey use this port number um okay
+29:11
+that's the way it works so there is prior knowledge like the client has to know where it's
+29:17
+going first yes so let's look at setting this up
+29:23
+right now and by the way when i talk about setup using teardown this is not net this is not the setup of that this is
+29:29
+actually just calling some functions to get the kernel ready we call socket and we call bind
+29:35
+okay and uh we're going to call a function called listen and i'll cover that in the next
+29:42
+slide and then we're going to call a function called accept so we haven't covered
+29:49
+these yet and we're getting there and then on the client side we're going to create a socket and we're going to
+29:55
+call connect which is going to match up so we now have to talk about this
+30:02
+so the server needs to accept new connections so the server calls listen
+30:08
+and then calls accept and the client's going to call connect
+30:21
+all right listen is only called once let's talk about let's see is that on the next slide yeah it's right here
+30:27
+what listen is called once you give it the socket number and you give it the backlog information what is let me tell
+30:33
+you what listen does really quickly it's what listen does is it tells the kernel
+30:39
+by the way i'm a server i'm going to have incoming connections coming to me and if i don't get to them
+30:46
+you need to buffer them until i can open the connection i can i can accept them because it's going to accept them in a
+30:51
+loop but if it doesn't get to them right away because maybe 30 people try to try to connect at the same time the kernel
+30:58
+needs to buffer them and what the backlog says is how many to buffer that's all it is it's setting up kernel
+31:04
+kernel space for you as a server uh the linux max is 128.
+31:10
+we always used five or ten in the classes i took because we're we're not really a professional server so there's
+31:16
+not many connections coming in simultaneously i mean your server might have 300 connections in it that's fine
+31:21
+but if they didn't all come simultaneously they don't need to be buffered by the kernel i laugh because it's like you could a
+31:27
+lot of these functions aren't even needed a lot of these parameters are never used and they're special cases so you could have written a library with
+31:34
+special cases and then the normal case would have been so simple to do right real simple but it's not what they did
+31:40
+so we go through it and by the way most of the stuff exists in python so if you look at using socket programming in
+31:45
+python you have to call this and you still have to call these functions all right so that's the listen function
+31:52
+and then the accept function um it actually ends up establishing the
+31:58
+connection with the client and this is a blocking call meaning
+32:03
+it's going to block until a client connects to it as soon as the client connects to it
+32:10
+it returns
+32:15
+all right on the client side it's going to call connect right so connect
+32:22
+maps up with accept on the server
+32:29
+and the main you know we got we're going to call with our socket and the main thing here is this is the address of the
+32:36
+server so that's the server's address and so that's got the family
+32:42
+you know af inet 6
+32:47
+the servers ip and the servers
+32:54
+port number go in that structure
+33:00
+is the length just like the number of number of characters in that second parameter yeah it's the length of that
+33:07
+so size of construct or size obstruct address adder
+33:12
+would work
+33:20
+all right so here's the connect system call here i'm setting up information about
+33:26
+the server here's the server's port number typically we get that as a runtime argument
+33:31
+i convert it to an integer put it in host network order
+33:36
+now what do you think bind returns let me see if i where's my okay here we
+33:43
+go socket bind what do you think bind returns
+33:50
+what does mine do okay somebody tell me what bind does it it associates
+33:56
+a file descriptor that you have with a uh port number right yes
+34:02
+okay so other than brandon what do you think it returns probably
+34:08
+the casual number or just a success okay you would wish it returned the port
+34:14
+number right because the only thing we really care about when we call bind is the port number or minus one for error
+34:21
+right well it doesn't it just doesn't it's like really i i mean i was stunned when i first learned that really it
+34:27
+doesn't return a port number no because that way we get to call another function
+34:32
+to get the port number otherwise we wouldn't be able to call that other function this actually gets us the port
+34:37
+number
+34:42
+get stock name gets us the port number so we bind it the kernel gives it to us and this retrieves it for us
+34:49
+and then we have to print it out so that we can give it to the client so the client can run it and so we printed out
+34:55
+the port number and then we called listen and we called accept okay
+35:00
+now one other thing we got to come back here i do want to talk about this now do you know the ip address of google
+35:11
+no it needs to be translated right so you say www.google.com
+35:17
+on the on the line in your browser it's actually going to translate that to an ip address using dns which we'll
+35:23
+cover later but it gets translated well the same thing with your program when you run your program you're going to say
+35:28
+you know client and then the machine name that the server's on like unix1.csc.calpoly.edu
+35:35
+and then the port number well that's not an ip address either and so we need to get that translated and
+35:41
+that's what this function does here this translates
+35:47
+a name to an ip number and it uses
+35:53
+domain name service
+35:59
+or dns all right so it's going to use dns to get that port number
+36:05
+so that not only is a system call or a call outside your process
+36:10
+it actually leaves your machine and it's going to go to another machine which is going to go to other machines and do
+36:16
+other lookups and then finally something's going to return back to your machine and you can move on so this call
+36:21
+can actually take multiple seconds the first time you do it if you go to a machine you've never been to
+36:29
+okay so we got connect and accept and then the next thing we have to talk about is here send and receive and then i think
+36:35
+we're there and so what does bind actually return then
+36:40
+uh minus one on error and i can't remember uh when it's correct or not maybe it's just that it i don't know
+36:47
+something that's not something that's not zero or it might be actually it might be zero
+36:52
+you'd have to look it up but the important thing is it doesn't return the only thing we care about which is the
+36:57
+port number all right so now there's another trick in here the tcp plays
+37:06
+we do this stuff only once in our program but for every new client
+37:13
+we have to call accept all right so client one calls connect
+37:19
+server calls accept client two another client over here calls connect server calls accept well how do we process
+37:26
+those how do we make it so that the server can talk to multiple clients
+37:32
+well it turns out the server returns a new socket number for every single except that it does so
+37:39
+i call socket the function gets socket get file descriptor three i call accept
+37:44
+somebody connects to me i get file descriptor four somebody connects to me again i get to scripture five someone
+37:50
+connects to me again i get files descriptor six and each one of those sockets is the one of the sockets we're
+37:56
+going to use to talk back to the client we never use this this is only our main
+38:01
+server socket
+38:10
+the only thing we do on that is we accept on it
+38:15
+it's the only thing we ever do if we're going to send and receive it's always on the new sockets that are created so if
+38:21
+we look at it the way that it works is you know we've got our main process here on the server
+38:28
+and it's you know we could say a while one loop i don't know what it is and then it calls accept
+38:33
+i need more space
+38:44
+and one way to think about it is then what we could do is we could fork a child
+38:50
+and that child is going to you know send and receive
+38:56
+using whatever s2 is then we're going to go back up and we're
+39:01
+going to accept again and we'd fork another child so this is one connection but this is going to send and receive on
+39:08
+the new socket that was created when accept returns and that's one way you could do it
+39:15
+another way to do it this is this is using fork in program two you're gonna use one process and every time a client
+39:21
+connects you're gonna get a new port new socket number and you're gonna use that socket number
+39:27
+uh to talk to that client you're going to watch that socket and if something becomes available you'll talk back to
+39:32
+that client and you'll have to keep track of all that but this is how we can talk to many clients
+39:40
+not simultaneously not sending to them all at the same time but i can talk to you and i can talk to this one and i can
+39:46
+talk to that one because in my space i have a different socket number which is actually connected to you a different
+39:52
+socket number connected to the other person and so on and that's because accept returns that new socket number so
+39:59
+we go back uh i was wondering if this means that uh like on a on a typical web server they
+40:05
+have a child process every current connection currently active connection so there's three ways to
+40:13
+manage multiple clients simultaneously one is the way we're going to do it in program
+40:18
+two which is the you're gonna have one process and that process has many open
+40:23
+file descriptors for many sockets and watches them all simultaneously it's looking at them all and one becomes
+40:29
+ready it processes that one so you can look at it you know you've got a huge bunch of you know open
+40:36
+open sockets and you're watching them all and each one's connected to a different client
+40:44
+and when one of them becomes ready you process that client and then oh then this one became ready and we process
+40:49
+that client and then it's the same one as ready and we process it the other ones don't become ready but we're going to watch them all simultaneously and
+40:56
+process anything that comes in that's one way to do it single it's a single process another way to do it
+41:03
+is through forking um forking is sort of a heavyweight process uh and and when you every time
+41:10
+you fork you uh actually create a new process new virtual memory they've done a lot to improve it but
+41:16
+it's considered a little bit of a heavier thing and then the third is using threads or p
+41:21
+threads and p threads are creating threads within the same process
+41:28
+and that's they're called lightweight threads and the reason is is because you're using the same virtual memory they're quicker and easier to create
+41:35
+less overhead but they have some other issues to go along with them but those are the three ways for a server to talk
+41:41
+to manage multiple clients i'm not sure like what google does in chrome but i'm pretty sure it's more
+41:47
+like the lightweight process um idea than any of the others
+41:53
+um so just a quick question about
+41:58
+forking uh using uh using a fork and using multiple child processes
+42:04
+um don't you have to be wary of like running out of your parent
+42:11
+process running out of file descriptors just in general actually not in forking so in threading you do because in
+42:17
+threading your every time you open a file descriptor it's in the same space and it's open until you close it when
+42:23
+you fork the parent can actually close the new socket and the child closes the parent socket
+42:30
+so there's only really one socket open in each process even though you may have many many clients yeah the server
+42:36
+doesn't keep track of those sockets it just it just forks a child closes the socket forks
+42:42
+well if if the uh parent or the client or the child forgets that it's a problem but just make sure that your child not
+42:49
+as much the child but yes if the parent forgets to close the new socket then it'll just continue to get more and more file descriptors open until it runs out
+42:55
+and there's a limit to the number of file descriptors you can have all right any questions on this
+43:04
+don't worry you'll get a chance to play with that uh no one ever gave me this lecture we didn't have it and the thing
+43:09
+is that every time i give it i think about wow i can't believe they actually wrote it this way it's just like the first thing
+43:15
+that comes to mind now it's like really um okay
+43:21
+and they've come up with newer functions for other things similar functionality that are even worse and i'm like really
+43:27
+they didn't learn in the 30 years since they created the first one that do that with the new ones no they didn't
+43:32
+so all right uh here's udp so in udp the server calls
+43:38
+socket bind prints out the port number right so that prints out the port number
+43:43
+and then instead of using send and receive they use send to and receive from we'll talk about the differences
+43:49
+than that but here's how we do udp here's how we do tcp
+43:56
+which is simpler
+44:02
+i mean udp doesn't have a setup or a teardown face so it's probably going to
+44:07
+be a lot simpler to set up or to manage it
+44:13
+like okay not a connection but like a transmission of data so good identification right so udp does
+44:20
+not have the setup and tear down that that is correct but it's actually the negative of udp
+44:25
+and you're gonna find this out when you get to write program three it's because when you screw up tcp it tells you
+44:31
+immediately if you're checking for errors on your system calls that you screwed up it'll say you screwed up if
+44:37
+you screw up on udp it doesn't care it just says oh you dropped this on the network and it's totally wrong well well
+44:43
+i don't care and it doesn't tell you what was wrong and so it's the udp is a lot harder to debug and you'll find that
+44:48
+out when we get to program three um but uh but it got some simpler to do
+44:54
+because there's less calls but okay all right so talking in tcp we use the
+45:01
+send function which is very similar to the to the write function and the receive function which is similar to the read
+45:07
+um the receive um so our socket the data the data length and then flags
+45:13
+um no magic there if you've done reads and writes send and receive is not
+45:19
+typically we'll use zero except in your program two there'll be a place where we won't
+45:25
+use zero i think this is my last i got one more
+45:30
+slide but pretty much the last uh tcp slide um
+45:36
+tcp creates a stream of data so when you send and then you send again
+45:43
+tcp doesn't really differentiate it it's not a one to one you send you receive one you send you receive one i send 10
+45:49
+bytes you receive 10 bytes it's not like that if i send 10 bytes and then send 10 bytes you may receive 20 bytes
+45:56
+you don't know what was sent it doesn't tell you that udp very nicely does and
+46:01
+when we get to udp that's a great feature for us but tcp doesn't well this becomes an issue because i send you a
+46:07
+message and then i send you another message and they're independent of each other and i want them printed on the screen independent of each other
+46:14
+but you get them both at the same time how do you tell the difference okay and now in program two we'll go
+46:21
+over how you do that but this is something we need to be aware of is that tcp creates a stream and it doesn't maintain
+46:28
+boundaries between what you sent and so if i send in two messages networks rules
+46:35
+i could receive this i could receive this i could receive part of it and then this
+46:41
+or most likely i'll receive that all right if i send it back to back most
+46:47
+likely it'll just put them together and i'll get it all in one chunk and this is uh this can be a problem you need to be
+46:53
+aware of it and we'll spend a considerable amount of time in program two addressing that and solving that
+46:58
+problem so you're essentially saying that there's no
+47:04
+f-flush well you can tell tcp
+47:09
+you can do some configuring to tell it not to you know to send it one to one
+47:14
+but if they arrive at the same time or you haven't gotten around to receiving them the colonel is going to put them
+47:20
+together colonel even though you sent one which was just the word networks and then and
+47:27
+it actually hit the wire and then you sent the second one rule and it hit the wire on the receiving side if your
+47:32
+client didn't go and receive them quick enough they'll just be put together in the same buffer and when you do your receive you're going to get them both
+47:38
+simultaneously and so is that
+47:44
+i'm guessing that the nick is what's determining this no it's no tcp buffers
+47:49
+for 125 milliseconds okay in its normal way it won't send if you've got data
+47:54
+it's going to try to group it together and then it's going to send it but if you don't let's say you're off in your
+48:00
+user space doing something and then finally you call receive if multiple things have arrived since
+48:07
+the last receive you're going to get them simultaneously you're just going to get them all at once
+48:14
+you said so the two messages are combined in the kernel and then that's
+48:20
+what is returned as one bit stream to the record recall or is it like directv
+48:25
+call is still open for a very small amount of time and then no correctly call will if there's something available the rec feed calls
+48:32
+i'll is um is a blocking call but if there's data
+48:37
+it will return immediately with that data okay so yeah two things arrived simultaneously or you
+48:43
+know within a little bit of time you're gonna get both okay and this slide is a little bit just about running
+48:49
+your servers um and your client when you run your server you need to output the port
+48:55
+number because you have to pass it in like here i'm passing it into the client
+49:00
+okay if you're running on the unix machines i found that i have to give it the whole name
+49:07
+you can also in our programs you'll be able to give it the ip address we wouldn't do that necessarily on campus but you might do it at home because your
+49:14
+machines probably don't have names to them or you can use localhost
+49:21
+which just says use my like if you're running it in two windows here's one window and here's another window on your machine this is the format you typically
+49:28
+use which is just localhost which says use my current machine
+49:33
+that this does the same thing as localhost so
+49:39
+uh barring like the slight architectural differences would we be able to develop on our local machines and then transfer
+49:46
+the program over to the unix servers like trace yes you can completely and you can do
+49:52
+that under windows if you have the windows subsystem for linux 2 even one might work but i use two
+49:58
+windows subsequent linux two works perfect for all these all the assignments in this class macs work fine
+50:05
+for them obviously linux works fine for them i will say this where you run into problems as you all have memory errors
+50:12
+and then you move it to the linux servers and it finds those errors for you and so give yourself time to debug
+50:19
+when you move between machines
+
